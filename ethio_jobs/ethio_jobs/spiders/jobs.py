@@ -25,6 +25,8 @@ class JobsSpider(scrapy.Spider):
 
         jobs = response.xpath('//div[@class="listing-section"]')
 
+        item_data = {}
+
         for job in jobs[:4]:
             position = job.xpath(".//div[@class='listing-title']/h2/a/text()").get()
             recruiter = job.xpath(
@@ -43,7 +45,7 @@ class JobsSpider(scrapy.Spider):
             ).get()
             job_detail_link = job.xpath(".//li[@class='viewDetails']/a/@href").get()
 
-            yield {
+            item_data = {
                 "Position": position,
                 "Company": recruiter,
                 "Work_place": work_place,
@@ -51,23 +53,29 @@ class JobsSpider(scrapy.Spider):
                 "Level": level,
                 "Job_detail_link": job_detail_link,
             }
-            yield from response.follow(job_detail_link, self.parse_detail)
 
-        # next_page = response.urljoin(
-        #     response.xpath(
-        #         "//ul[@class='pagination pagination-blue']/li[last()]/a/@href"
-        #     ).get()
-        # )
-        # if next_page:
-        #     yield scrapy.Request(
-        #         url=next_page, callback=self.parse, headers=self.headers
-        #     )
+            yield response.follow(
+                job_detail_link,
+                callback=self.parse_detail,
+                cb_kwargs={"item_data": item_data},
+            )
 
-    def parse_detail(self, response):
+        next_page = response.urljoin(
+            response.xpath(
+                "//ul[@class='pagination pagination-blue']/li[last()]/a/@href"
+            ).get()
+        )
+        if next_page:
+            yield scrapy.Request(
+                url=next_page, callback=self.parse, headers=self.headers
+            )
+
+    def parse_detail(self, response, item_data):
         """
         this method is used to parse the job details
         """
 
+        # item_data = response.meta["item_data"]
         catagory = (
             response.xpath("//div[@id='col-wide']/div[1]/div[2]/text()").get().strip()
         )
@@ -85,19 +93,23 @@ class JobsSpider(scrapy.Spider):
             .get()
             .strip()
         )
+
         # required_num =
         # department = ''
 
+        # job_description = ''
+        # job_requirement = ''
+        # how_to_apply = ''
         # job_summary = ''
         # job_responsibities = ''
         # education_and_experience = ''
         # personal_skill = ''
         # how_to_apply = ''
 
-        yield {
-            "Catagory": catagory,
-            "Employement_type": employement_type,
-            "Salary": salary,
-            "About_recruiter": about_recruiter,
-            "Job_grade": job_grade,
-        }
+        item_data["Catagory"] = (catagory,)
+        item_data["Employement_type"] = (employement_type,)
+        item_data["Salary"] = (salary,)
+        item_data["About_recruiter"] = (about_recruiter,)
+        item_data["Job_grade"] = (job_grade,)
+
+        yield item_data
